@@ -43,6 +43,33 @@ WHERE f.rating IN ('NC-17', 'R') AND store_id = most_adult_film_rentals() -- acc
 GROUP BY f.film_id, f.rating
 ORDER BY f.film_id;
 
+-- detailed table for 
+CREATE TABLE detailed_adult_films(
+    film_id INT PRIMARY KEY,
+    film_rating::VARCHAR(10),
+    film_title VARCHAR(255),
+    film_description TEXT,
+    inventory_count INT,
+    store_id INT,
+    rental_duration INT
+)
+
+-- summary table including inventory id and top 100 film count
+CREATE TABLE summary_adult_films(
+    film_id INT PRIMARY KEY,
+    film_title VARCHAR(255),
+    film_rating::VARCHAR(10),
+    inventory_id INT,
+);
+
+
+INSERT INTO detailed_adult_films(film_id, film_rating, film_title, film_description, inventory_count, store_id, rental_duration)
+SELECT f.film_id, f.rating, f.title, f.description, COUNT(f.film_id) AS inventory_count, i.store_id, EXTRACT(EPOCH FROM (r.return_date - r.rental_date)) AS rental_duration
+FROM public.film f
+JOIN public.inventory i ON f.film_id = i.film_id
+JOIN public.rental r ON i.inventory_id = r.inventory_id
+WHERE f.rating IN ('NC-17', 'R') AND i.store_id = most_adult_film_rentals() AND r.return_date IS NOT NULL;
+
 
 
 
