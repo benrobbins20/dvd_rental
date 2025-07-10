@@ -31,26 +31,26 @@ BEGIN
     JOIN public.film f ON i.film_id = f.film_id
     WHERE f.rating IN ('NC-17', 'R') AND i.store_id = most_adult_film_rentals() AND r.return_date IS NOT NULL
     ORDER BY rental_duration DESC
-    LIMIT 100; -- limit to top 100 adult films
+    LIMIT 100; -- limit to top 20 adult films
 END;
 $$ LANGUAGE plpgsql;
 
-SELECT get_top_adult_films();
+-- SELECT get_top_adult_films();
 
 -- the query to get master data for the adult films 
--- SELECT f.film_id, f.rating, COUNT(*) as adult_film_inventory
--- FROM public.film f
--- JOIN public.inventory i on f.film_id = i.film_id -- has the one film_id mapped to many inventory_id
--- JOIN public.rental r on i.inventory_id = r.inventory_id -- rental table has the store_id
--- WHERE f.rating IN ('NC-17', 'R') AND store_id = most_adult_film_rentals() -- access the top_store variable stored from helper task
--- GROUP BY f.film_id, f.rating
--- ORDER BY f.film_id;
+SELECT f.film_id, f.rating, COUNT(*) as adult_film_inventory
+FROM public.film f
+JOIN public.inventory i on f.film_id = i.film_id -- has the one film_id mapped to many inventory_id
+JOIN public.rental r on i.inventory_id = r.inventory_id -- rental table has the store_id
+WHERE f.rating IN ('NC-17', 'R') AND store_id = 2 -- access the top_store variable stored from helper task
+GROUP BY f.film_id, f.rating
+ORDER BY f.film_id;
 
 -- detailed table for adult movies
 DROP TABLE IF EXISTS detailed_adult_films;
 CREATE TABLE detailed_adult_films(
     film_id INT PRIMARY KEY,
-    film_rating VARCHAR(10),
+    film_rating mpaa_rating,
     film_title VARCHAR(255),
     film_description TEXT,
     inventory_count INT,
@@ -68,14 +68,20 @@ CREATE TABLE summary_adult_films(
 );
 
 
--- INSERT INTO detailed_adult_films(film_id, film_rating, film_title, film_description, inventory_count, store_id, rental_duration)
--- SELECT f.film_id, f.rating, f.title, f.description, COUNT(f.film_id) AS inventory_count, i.store_id, EXTRACT(EPOCH FROM (r.return_date - r.rental_date)) AS rental_duration
--- FROM public.film f
--- JOIN public.inventory i ON f.film_id = i.film_id
--- JOIN public.rental r ON i.inventory_id = r.inventory_id
--- WHERE f.rating IN ('NC-17', 'R') AND i.store_id = most_adult_film_rentals() AND r.return_date IS NOT NULL;
+INSERT INTO detailed_adult_films(film_id, film_rating, film_title, film_description, inventory_count, store_id, rental_duration)
+SELECT 
+	f.film_id, 
+	f.rating, 
+	f.title, 
+	f.description, 
+	COUNT(*) AS inventory_count, 
+	i.store_id, 
+	EXTRACT(EPOCH FROM (r.return_date - r.rental_date)) AS rental_duration
+FROM public.film f
+JOIN public.inventory i ON f.film_id = i.film_id
+JOIN public.rental r ON i.inventory_id = r.inventory_id
+WHERE f.rating IN ('NC-17', 'R') AND i.store_id = most_adult_film_rentals() AND r.return_date IS NOT NULL;
 
-
-
+SELECT * FROM detailed_adult_films;
 
 
