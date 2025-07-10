@@ -31,7 +31,7 @@ BEGIN
     JOIN public.film f ON i.film_id = f.film_id
     WHERE f.rating IN ('NC-17', 'R') AND i.store_id = most_adult_film_rentals() AND r.return_date IS NOT NULL
     ORDER BY rental_duration DESC
-    LIMIT 100; -- limit to top 20 adult films
+    LIMIT 100; -- limit to top 100 adult films
 END;
 $$ LANGUAGE plpgsql;
 
