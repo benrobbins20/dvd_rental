@@ -32,7 +32,6 @@ BEGIN
     WHERE f.rating IN ('NC-17', 'R') AND i.store_id = most_adult_film_rentals() AND r.return_date IS NOT NULL
     ORDER BY rental_duration DESC
     LIMIT 20; -- limit to top 20 adult films
-    RETURN QUERY SELECT f.film_id, f.rating, rental_duration
 END;
 $$ LANGUAGE plpgsql;
 
@@ -74,7 +73,30 @@ JOIN public.rental r ON i.inventory_id = r.inventory_id
 WHERE f.rating IN ('NC-17', 'R') AND i.store_id = most_adult_film_rentals() AND r.return_date IS NOT NULL;
 
 
+-- transformation function to increase the inventory count, converts count INT to VARCHAR qty:<int>
+CREATE OR REPLACE FUNCTION increase_adult_film_inventory(current_count INT, percent INT)
+returns VARCHAR AS $$ -- $$ are delimiters to run raw sql
+declare 
+    increased_inventory INT;
+BEGIN
+    increased_inventor := CEILING(current_count * (1 + percent / 100.0)); -- increase the count by the percent
+    return 'qty: ' || increased_inventory;
+END;
+$$ LANGUAGE plpgsql;
 
-
-
+-- create a common table expression to test transformation function
+WITH adult_film_count AS (
+    SELECT *
+    FROM (VALUES
+        (11,25),
+        (100, 100),
+        (1,2)) AS t(current_count, percent) 
+)
+SELECT
+    current_count,
+    percent,
+    -- call the transformation function to increase inventory count
+    increase_adult_film_inventory(current_count, percent) as test_increase
+FROM adult_film_count;
+ 
 
