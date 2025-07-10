@@ -80,9 +80,12 @@ SELECT
 FROM public.film f
 JOIN public.inventory i ON f.film_id = i.film_id
 JOIN public.rental r ON i.inventory_id = r.inventory_id
-WHERE f.rating IN ('NC-17', 'R') AND i.store_id = most_adult_film_rentals() AND r.return_date IS NOT NULL;
+WHERE f.rating IN ('NC-17', 'R') AND i.store_id = most_adult_film_rentals() AND r.return_date IS NOT NULL
+GROUP BY f.film_id, f.rating, f.title, f.description, i.store_id
+ORDER BY rental_duration DESC
+LIMIT 100;
 
-SELECT * FROM detailed_adult_films;
+-- SELECT * FROM detailed_adult_films;
 
 -- transformation function to increase the inventory count, converts count INT to VARCHAR qty:<int>
 CREATE OR REPLACE FUNCTION increase_adult_film_inventory(current_count INT, percent INT)
