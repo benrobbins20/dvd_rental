@@ -55,7 +55,7 @@ CREATE TABLE detailed_adult_films(
     film_description TEXT,
     inventory_count INT,
     store_id INT,
-    rental_duration INT
+    rental_duration DOUBLE PRECISION
 );
 
 -- summary table including inventory id and top 100 film count
@@ -76,39 +76,43 @@ SELECT
 	f.description, 
 	COUNT(*) AS inventory_count, 
 	i.store_id, 
-	EXTRACT(EPOCH FROM (r.return_date - r.rental_date)) AS rental_duration
+	MAX(EXTRACT(EPOCH FROM (r.return_date - r.rental_date))/3600) AS rental_duration
 FROM public.film f
 JOIN public.inventory i ON f.film_id = i.film_id
 JOIN public.rental r ON i.inventory_id = r.inventory_id
-WHERE f.rating IN ('NC-17', 'R') AND i.store_id = most_adult_film_rentals() AND r.return_date IS NOT NULL
+WHERE f.rating IN ('NC-17', 'R') 
+	AND i.store_id = most_adult_film_rentals() 
+	AND r.return_date IS NOT NULL
 GROUP BY f.film_id, f.rating, f.title, f.description, i.store_id
 ORDER BY rental_duration DESC
 LIMIT 100;
 
 -- SELECT * FROM detailed_adult_films;
 
--- transformation function to increase the inventory count, converts count INT to VARCHAR qty:<int>
-CREATE OR REPLACE FUNCTION increase_adult_film_inventory(current_count INT, percent INT)
-returns VARCHAR AS $$ -- $$ are delimiters to run raw sql
-declare 
-    increased_inventory INT;
-BEGIN
-    increased_inventor := CEILING(current_count * (1 + percent / 100.0)); -- increase the count by the percent
-    return 'qty: ' || increased_inventory;
-END;
-$$ LANGUAGE plpgsql;
--- create a common table expression to test transformation function
-WITH adult_film_count AS (
-    SELECT *
-    FROM (VALUES
-        (11,25),
-        (100, 100),
-        (1,2)) AS t(current_count, percent) 
-)
-SELECT
-    current_count,
-    percent,
-    -- call the transformation function to increase inventory count
-    increase_adult_film_inventory(current_count, percent) as test_increase
-FROM adult_film_count;
+-- -- transformation function to increase the inventory count, converts count INT to VARCHAR qty:<int>
+-- CREATE OR REPLACE FUNCTION increase_adult_film_inventory(current_count INT, percent INT)
+-- returns VARCHAR AS $$ -- dollar signs are delimiters to run raw sql
+-- declare 
+--     increased_inventory INT;
+-- BEGIN
+--     increased_inventory := CEILING(current_count * (1 + percent / 100.0)); -- increase the count by the percent, round up
+--     return 'qty: ' || increased_inventory;
+-- END;
+-- $$ LANGUAGE plpgsql;
+-- -- create a common table expression to test transformation function
+-- WITH adult_film_count AS (
+--     SELECT *
+--     FROM (VALUES
+--         (11,25),
+--         (100, 100),
+--         (1,2)) AS t(current_count, percent) 
+-- )
+-- SELECT
+--     current_count,
+--     percent,
+--     -- call the transformation function to increase inventory count
+--     increase_adult_film_inventory(current_count, percent) as test_increase
+-- FROM adult_film_count;
+
+
 
