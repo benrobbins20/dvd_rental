@@ -20,13 +20,16 @@ $$ LANGUAGE plpgsql; -- procedural language postgres, like shebang, interpreter 
 -- create a table with the top 20 adult films with the longest rental period from store 2 (return val of most_adult..())
 CREATE OR REPLACE FUNCTION get_top_adult_films()
 RETURNS TABLE(film_id INT, rating VARCHAR, rental_duration INT) AS $$
-DECLARE rental_duration DOUBLE PRECISION;
 BEGIN
-    SELECT EXTRACT(EPOCH FROM (r.return_date - r.rental_date)) INTO rental_duration
+    RETURN QUERY
+    SELECT
+        f.film_id,
+        f.rating,
+        EXTRACT(EPOCH FROM (r.return_date - r.rental_date)) AS rental_duration
     FROM public.rental r
     JOIN public.inventory i ON r.inventory_id = i.inventory_id
     JOIN public.film f ON i.film_id = f.film_id
-    WHERE f.rating IN ('NC-17', 'R') AND i.store_id = most_adult_film_rentals() 
+    WHERE f.rating IN ('NC-17', 'R') AND i.store_id = most_adult_film_rentals() AND r.return_date IS NOT NULL
     ORDER BY rental_duration DESC
     LIMIT 20; -- limit to top 20 adult films
     RETURN QUERY SELECT f.film_id, f.rating, rental_duration
