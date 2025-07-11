@@ -67,6 +67,57 @@ CREATE TABLE summary_adult_films(
     increased_inventory VARCHAR(255)
 );
 
+-- updater that runs when the inserts into detailed table trigger summary table updates
+CREATE OR REPLACE FUNCTION update_summary_table()
+RETURNS TRIGGER AS $$
+BEGIN
+	INSERT INTO summary_adult_films(film_id, film_rating, film_title, increased_inventory)
+	VALUES (
+		NEW.film_id,
+		NEW.film_rating,
+		NEW.film_title,
+		increase_adult_film_inventory(NEW.inventory_count, 30)
+	);
+	RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- -- trigger on insert to detailed_adult_films that executes the summary population function
+CREATE TRIGGER summary_table_updater
+AFTER INSERT ON detailed_adult_films
+FOR EACH ROW
+EXECUTE FUNCTION update_summary_table();
+
+-- transformation function to increase the inventory count, converts count INT to VARCHAR qty:<int>
+CREATE OR REPLACE FUNCTION increase_adult_film_inventory(current_count INT, percent INT)
+returns VARCHAR AS $$ -- dollar signs are delimiters to run raw sql
+declare 
+    increased_inventory INT;
+BEGIN
+    increased_inventory := CEILING(current_count * (1 + percent / 100.0)); -- increase the count by the percent, round up
+    return 'qty: ' || increased_inventory;
+END;
+$$ LANGUAGE plpgsql;
+
+-- create a common table expression to test transformation function
+-- -- WITH adult_film_count AS (
+-- --     SELECT *
+-- --     FROM (VALUES
+-- --         (11,25),
+-- --         (100, 100),
+-- --         (1,2)) AS t(current_count, percent) 
+-- -- )
+-- -- SELECT
+-- --     current_count,
+-- --     percent,
+-- --     -- call the transformation function to increase inventory count
+-- --     increase_adult_film_inventory(current_count, percent) as test_increase
+-- -- FROM adult_film_count;
+
+
+
+-- ------------------------------------------------------------------------------------------------------------------
+-- insert data and trigger summary table updater and call the transformation function
 
 INSERT INTO detailed_adult_films(film_id, film_rating, film_title, film_description, inventory_count, store_id, rental_duration)
 SELECT 
@@ -88,56 +139,5 @@ ORDER BY rental_duration DESC
 LIMIT 200;
 
 SELECT * FROM detailed_adult_films;
-
--- transformation function to increase the inventory count, converts count INT to VARCHAR qty:<int>
-CREATE OR REPLACE FUNCTION increase_adult_film_inventory(current_count INT, percent INT)
-returns VARCHAR AS $$ -- dollar signs are delimiters to run raw sql
-declare 
-    increased_inventory INT;
-BEGIN
-    increased_inventory := CEILING(current_count * (1 + percent / 100.0)); -- increase the count by the percent, round up
-    return 'qty: ' || increased_inventory;
-END;
-$$ LANGUAGE plpgsql;
-
--- -- -- create a common table expression to test transformation function
--- -- WITH adult_film_count AS (
--- --     SELECT *
--- --     FROM (VALUES
--- --         (11,25),
--- --         (100, 100),
--- --         (1,2)) AS t(current_count, percent) 
--- -- )
--- -- SELECT
--- --     current_count,
--- --     percent,
--- --     -- call the transformation function to increase inventory count
--- --     increase_adult_film_inventory(current_count, percent) as test_increase
--- -- FROM adult_film_count;
-
--- -- updater that runs when the trigger
-CREATE OR REPLACE FUNCTION update_summary_table()
-RETURNS TRIGGER AS $$
-BEGIN
-	INSERT INTO summary_adult_films(film_id, film_title, film_rating, increased_inventory)
-	VALUES (
-		NEW.film_id,
-		NEW.film_rating,
-		NEW.film_title,
-		increase_adult_film_inventory(NEW.inventory_count, 30)
-	);
-	RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- -- trigger on insert to detailed_adult_films that executes the summary population function
-CREATE TRIGGER summary_table_updater
-AFTER INSERT ON detailed_adult_films
-FOR EACH ROW
-EXECUTE FUNCTION update_summary_table();
-
-INSERT INTO detailed_adult_films(film_id, film_rating, film_title, film_description, inventory_count, store_id, rental_duration)
-VALUES(1,'R', 'A', 'ABC', 10, 2, 220);
-
-SELECT * FROM summary_adult_films;
+-- SELECT * FROM summary_adult_films;
 	
