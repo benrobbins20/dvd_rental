@@ -47,10 +47,10 @@ GROUP BY f.film_id, f.rating
 ORDER BY f.film_id;
 
 -- detailed table for adult movies
-DROP TABLE IF EXISTS;
+DROP TABLE IF EXISTS detailed_adult_films;
 CREATE TABLE detailed_adult_films(
     film_id INT PRIMARY KEY,
-    film_rating mpaa_rating,
+    film_rating VARCHAR(5),
     film_title VARCHAR(255),
     film_description TEXT,
     inventory_count INT,
@@ -71,7 +71,7 @@ CREATE TABLE summary_adult_films(
 INSERT INTO detailed_adult_films(film_id, film_rating, film_title, film_description, inventory_count, store_id, rental_duration)
 SELECT 
 	f.film_id, 
-	f.rating, 
+	f.rating::VARCHAR, -- cast mpaa enum to varchar
 	f.title, 
 	f.description, 
 	COUNT(*) AS inventory_count, 
@@ -89,7 +89,7 @@ LIMIT 200;
 
 SELECT * FROM detailed_adult_films;
 
--- -- transformation function to increase the inventory count, converts count INT to VARCHAR qty:<int>
+-- transformation function to increase the inventory count, converts count INT to VARCHAR qty:<int>
 CREATE OR REPLACE FUNCTION increase_adult_film_inventory(current_count INT, percent INT)
 returns VARCHAR AS $$ -- dollar signs are delimiters to run raw sql
 declare 
@@ -100,38 +100,44 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- -- create a common table expression to test transformation function
--- WITH adult_film_count AS (
---     SELECT *
---     FROM (VALUES
---         (11,25),
---         (100, 100),
---         (1,2)) AS t(current_count, percent) 
--- )
--- SELECT
---     current_count,
---     percent,
---     -- call the transformation function to increase inventory count
---     increase_adult_film_inventory(current_count, percent) as test_increase
--- FROM adult_film_count;
+-- -- -- create a common table expression to test transformation function
+-- -- WITH adult_film_count AS (
+-- --     SELECT *
+-- --     FROM (VALUES
+-- --         (11,25),
+-- --         (100, 100),
+-- --         (1,2)) AS t(current_count, percent) 
+-- -- )
+-- -- SELECT
+-- --     current_count,
+-- --     percent,
+-- --     -- call the transformation function to increase inventory count
+-- --     increase_adult_film_inventory(current_count, percent) as test_increase
+-- -- FROM adult_film_count;
 
--- trigger on insert to detailed_adult_films that executes the summary population function
-CREATE OR REPLACE TRIGGER summary_table_updater
-AFTER INSERT ON detailed_adult_films
-FOR EACH STATEMENT
-EXECUTE update_summary_table()
-
--- updater that runs when the trigger
+-- -- updater that runs when the trigger
 CREATE OR REPLACE FUNCTION update_summary_table()
 RETURNS TRIGGER AS $$
 BEGIN
-	INSERT INTO summary_adult_films(film_id, film_title, rating, increased_inventory)
+	INSERT INTO summary_adult_films(film_id, film_title, film_rating, increased_inventory)
 	VALUES (
 		NEW.film_id,
+		NEW.film_rating,
 		NEW.film_title,
-		NEW.rating
-		(SELECT INCREASE_ADULT_FILM_INVENTORY(inventory_count, 30) FROM detailed_adult_films WHERE film_id = NEW.film_id)
-	
-	)
+		increase_adult_film_inventory(NEW.inventory_count, 30)
+	);
+	RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
+-- -- trigger on insert to detailed_adult_films that executes the summary population function
+CREATE TRIGGER summary_table_updater
+AFTER INSERT ON detailed_adult_films
+FOR EACH ROW
+EXECUTE FUNCTION update_summary_table();
+
+INSERT INTO detailed_adult_films(film_id, film_rating, film_title, film_description, inventory_count, store_id, rental_duration)
+VALUES(1,'R', 'A', 'ABC', 10, 2, 220);
+
+SELECT * FROM summary_adult_films;
 	
