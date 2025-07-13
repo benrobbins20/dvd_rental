@@ -53,6 +53,7 @@ CREATE TABLE detailed_adult_films(
     film_rating VARCHAR(5),
     film_title VARCHAR(255),
     film_description TEXT,
+    rental_price NUMERIC,
     inventory_count INT,
     store_id INT,
     rental_duration DOUBLE PRECISION
@@ -64,20 +65,26 @@ CREATE TABLE summary_adult_films(
     film_id INT PRIMARY KEY,
     film_title VARCHAR(255),
     film_rating VARCHAR(10),
-    increased_inventory VARCHAR(255)
+    increased_inventory VARCHAR(255),
+    revenue_potential NUMERIC
 );
 
 -- updater that runs when the inserts into detailed table trigger summary table updates
 CREATE OR REPLACE FUNCTION update_summary_table()
 RETURNS TRIGGER AS $$
+DECLARE inventory_record RECORD; -- transformtion function returns a table, hold result in a record
 BEGIN
-	INSERT INTO summary_adult_films(film_id, film_rating, film_title, increased_inventory)
-	VALUES (
-		NEW.film_id,
-		NEW.film_rating,
-		NEW.film_title,
-		increase_adult_film_inventory(NEW.inventory_count, 30)
-	);
+FOR inventory_record IN
+    SELECT * FROM increase_adult_film_inventory(NEW.inventory_count, 30, NEW.rental_price)
+    LOOP
+        INSERT INTO summary_adult_films(film_id, film_rating, film_title, increased_inventory, revenue_potential)
+        VALUES (
+            NEW.film_id,
+            NEW.film_rating,
+            NEW.film_title,
+            increase_adult_film_inventory(NEW.inventory_count, 30), 
+        );
+    END LOOP;
 	RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -89,13 +96,16 @@ FOR EACH ROW
 EXECUTE FUNCTION update_summary_table();
 
 -- transformation function to increase the inventory count, converts count INT to VARCHAR qty:<int>
-CREATE OR REPLACE FUNCTION increase_adult_film_inventory(current_count INT, percent INT)
-returns VARCHAR AS $$ -- dollar signs are delimiters to run raw sql
-declare 
-    increased_inventory INT;
+CREATE OR REPLACE FUNCTION increase_adult_film_inventory(current_count INT, percent INT, rental_price NUMERIC)
+-- show both the quantity increase the potential revenue from adding more inventory
+RETURNS TABLE (
+    increased_inventory INT,
+    revenue_potential NUMERIC;
+) AS $$ -- dollar signs are delimiters to run raw sql
 BEGIN
     increased_inventory := CEILING(current_count * (1 + percent / 100.0)); -- increase the count by the percent, round up
-    return 'qty: ' || increased_inventory;
+    revenue_potential := increased_inventory * rental_price; -- calculate revenue potential, assuming $2.99 per rental
+    RETURN NEXT;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -121,12 +131,13 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION populate_detailed_adult_table()
 RETURNS VOID AS $$
 BEGIN
-    INSERT INTO detailed_adult_films(film_id, film_rating, film_title, film_description, inventory_count, store_id, rental_duration)
+    INSERT INTO detailed_adult_films(film_id, film_rating, film_title, film_description, rental_price, inventory_count, store_id, rental_duration)
     SELECT 
         f.film_id, 
         f.rating::VARCHAR, -- cast mpaa enum to varchar
         f.title, 
-        f.description, 
+        f.description,
+        f.rental_rate,
         COUNT(*) AS inventory_count, 
         i.store_id, 
         MAX(EXTRACT(EPOCH FROM (r.return_date - r.rental_date)) / 3600) AS rental_duration
@@ -148,11 +159,11 @@ $$ LANGUAGE plpgsql;
 SELECT * FROM summary_adult_films;
 	
 -- wipe both created tables and repopulate detailed table, which will trigger summary table updates
-CREATE OR REPLACE FUNCTION wipe_and_repopulate_tables() AS $$
+CREATE OR REPLACE PROCEDURE wipe_and_repopulate_tables() AS $$
 BEGIN
     TRUNCATE TABLE detailed_adult_films, summary_adult_films;
     PERFORM populate_detailed_adult_table();
 END;
 $$ LANGUAGE plpgsql;
 
-SELECT wipe_and_repopulate_tables();
+CALL wipe_and_repopulate_tables();
