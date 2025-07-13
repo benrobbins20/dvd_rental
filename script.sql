@@ -82,7 +82,8 @@ FOR inventory_record IN
             NEW.film_id,
             NEW.film_rating,
             NEW.film_title,
-            increase_adult_film_inventory(NEW.inventory_count, 30), 
+            inventory_record.increased_inventory,
+			inventory_record.revenue_potential
         );
     END LOOP;
 	RETURN NEW;
@@ -100,7 +101,7 @@ CREATE OR REPLACE FUNCTION increase_adult_film_inventory(current_count INT, perc
 -- show both the quantity increase the potential revenue from adding more inventory
 RETURNS TABLE (
     increased_inventory INT,
-    revenue_potential NUMERIC;
+    revenue_potential NUMERIC
 ) AS $$ -- dollar signs are delimiters to run raw sql
 BEGIN
     increased_inventory := CEILING(current_count * (1 + percent / 100.0)); -- increase the count by the percent, round up
@@ -156,7 +157,7 @@ $$ LANGUAGE plpgsql;
 -- call function for initial insert
 
 -- SELECT * FROM detailed_adult_films;
-SELECT * FROM summary_adult_films;
+
 	
 -- wipe both created tables and repopulate detailed table, which will trigger summary table updates
 CREATE OR REPLACE PROCEDURE wipe_and_repopulate_tables() AS $$
@@ -167,3 +168,4 @@ END;
 $$ LANGUAGE plpgsql;
 
 CALL wipe_and_repopulate_tables();
+SELECT * FROM summary_adult_films;
