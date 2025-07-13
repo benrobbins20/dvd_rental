@@ -74,19 +74,20 @@ CREATE OR REPLACE FUNCTION update_summary_table()
 RETURNS TRIGGER AS $$
 DECLARE inventory_record RECORD; -- transformtion function returns a table, hold result in a record
 BEGIN
-FOR inventory_record IN
-    SELECT * FROM increase_adult_film_inventory(NEW.inventory_count, 30, NEW.rental_price)
-    LOOP
-        INSERT INTO summary_adult_films(film_id, film_rating, film_title, increased_inventory, revenue_potential)
-        VALUES (
-            NEW.film_id,
-            NEW.film_rating,
-            NEW.film_title,
-            inventory_record.increased_inventory,
-			inventory_record.revenue_potential
-        );
-    END LOOP;
-	RETURN NEW;
+    -- get the row/record of the transformation function
+    SELECT * INTO inventory_record 
+    FROM increase_adult_film_inventory(NEW.inventory_count, 30, NEW.rental_price)
+
+    -- add the processed columns to the summary table
+    INSERT INTO summary_adult_films(film_id, film_rating, film_title, increased_inventory, revenue_potential)
+    VALUES (
+        NEW.film_id,
+        NEW.film_rating,
+        NEW.film_title,
+        inventory_record.increased_inventory,
+        inventory_record.revenue_potential
+    );
+    RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
