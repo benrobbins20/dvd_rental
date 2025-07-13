@@ -118,26 +118,41 @@ $$ LANGUAGE plpgsql;
 
 -- ------------------------------------------------------------------------------------------------------------------
 -- insert data and trigger summary table updater and call the transformation function
+CREATE OR REPLACE FUNCTION populate_detailed_adult_table()
+RETURNS VOID AS $$
+BEGIN
+    INSERT INTO detailed_adult_films(film_id, film_rating, film_title, film_description, inventory_count, store_id, rental_duration)
+    SELECT 
+        f.film_id, 
+        f.rating::VARCHAR, -- cast mpaa enum to varchar
+        f.title, 
+        f.description, 
+        COUNT(*) AS inventory_count, 
+        i.store_id, 
+        MAX(EXTRACT(EPOCH FROM (r.return_date - r.rental_date)) / 3600) AS rental_duration
+    FROM public.film f
+    JOIN public.inventory i ON f.film_id = i.film_id
+    JOIN public.rental r ON i.inventory_id = r.inventory_id
+    WHERE f.rating IN ('NC-17', 'R') 
+        AND i.store_id = most_adult_film_rentals() 
+        AND r.return_date IS NOT NULL
+    GROUP BY f.film_id, f.rating, f.title, f.description, i.store_id
+    ORDER BY rental_duration DESC
+    LIMIT 200;
+END;
+$$ LANGUAGE plpgsql;
 
-INSERT INTO detailed_adult_films(film_id, film_rating, film_title, film_description, inventory_count, store_id, rental_duration)
-SELECT 
-	f.film_id, 
-	f.rating::VARCHAR, -- cast mpaa enum to varchar
-	f.title, 
-	f.description, 
-	COUNT(*) AS inventory_count, 
-	i.store_id, 
-	MAX(EXTRACT(EPOCH FROM (r.return_date - r.rental_date)) / 3600) AS rental_duration
-FROM public.film f
-JOIN public.inventory i ON f.film_id = i.film_id
-JOIN public.rental r ON i.inventory_id = r.inventory_id
-WHERE f.rating IN ('NC-17', 'R') 
-	AND i.store_id = most_adult_film_rentals() 
-	AND r.return_date IS NOT NULL
-GROUP BY f.film_id, f.rating, f.title, f.description, i.store_id
-ORDER BY rental_duration DESC
-LIMIT 200;
+-- call function for initial insert
 
-SELECT * FROM detailed_adult_films;
--- SELECT * FROM summary_adult_films;
+-- SELECT * FROM detailed_adult_films;
+SELECT * FROM summary_adult_films;
 	
+-- wipe both created tables and repopulate detailed table, which will trigger summary table updates
+CREATE OR REPLACE FUNCTION wipe_and_repopulate_tables() AS $$
+BEGIN
+    TRUNCATE TABLE detailed_adult_films, summary_adult_films;
+    PERFORM populate_detailed_adult_table();
+END;
+$$ LANGUAGE plpgsql;
+
+SELECT wipe_and_repopulate_tables();
