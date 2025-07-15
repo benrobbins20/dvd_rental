@@ -1,4 +1,30 @@
--- procedure to get the store with the most adult film rentals
+----------------- Section B: Transformation Function -----------------
+CREATE OR REPLACE FUNCTION increase_adult_film_inventory(current_count INT, percent INT, rental_price NUMERIC)
+-- show both the quantity increase the potential revenue from adding more inventory
+RETURNS TABLE (
+    increased_inventory INT,
+    revenue_potential NUMERIC
+) AS $$ -- dollar signs are delimiters to run raw sql
+BEGIN
+    increased_inventory := CEILING(current_count * (1 + percent / 100.0)); -- increase the count by the percent, round up
+    revenue_potential := (increased_inventory -  current_count) * rental_price; -- calculate added revenue potential
+    RETURN NEXT;
+END;
+$$ LANGUAGE plpgsql;
+
+-- create a common table expression to test transformation function
+WITH adult_film_count AS (
+    SELECT *
+    FROM (VALUES
+        (11,25),
+        (100, 100),
+        (1,2)) AS t(current_count, percent) 
+)
+
+SELECT * FROM adult_film_count;
+
+
+-- internal function to get the store with the most adult film rentals
 CREATE OR REPLACE FUNCTION most_adult_film_rentals()
 RETURNS INT as $$
 declare top_store INT;
@@ -15,36 +41,6 @@ END;
 $$ LANGUAGE plpgsql; -- procedural language postgres, like shebang, interpreter declaration
 -- print the result
 -- SELECT most_adult_film_rentals();
-
-DROP FUNCTION IF EXISTS get_top_adult_films();
--- create a table with the top 100 adult films with the longest rental period from store 2 (return val of most_adult..())
-CREATE OR REPLACE FUNCTION get_top_adult_films()
-RETURNS TABLE(film_id INT, rating mpaa_rating, rental_duration DOUBLE PRECISION) AS $$
-BEGIN
-    RETURN QUERY
-    SELECT
-        f.film_id,
-        f.rating,
-        EXTRACT(EPOCH FROM (r.return_date - r.rental_date)) / 3600 AS rental_duration  -- hours
-    FROM public.rental r
-    JOIN public.inventory i ON r.inventory_id = i.inventory_id
-    JOIN public.film f ON i.film_id = f.film_id
-    WHERE f.rating IN ('NC-17', 'R') AND i.store_id = most_adult_film_rentals() AND r.return_date IS NOT NULL
-    ORDER BY rental_duration DESC
-    LIMIT 100; -- limit to top 20 adult films
-END;
-$$ LANGUAGE plpgsql;
-
--- SELECT get_top_adult_films();
-
--- the query to get master data for the adult films 
-SELECT f.film_id, f.rating, COUNT(*) as adult_film_inventory
-FROM public.film f
-JOIN public.inventory i on f.film_id = i.film_id -- has the one film_id mapped to many inventory_id
-JOIN public.rental r on i.inventory_id = r.inventory_id -- rental table has the store_id
-WHERE f.rating IN ('NC-17', 'R') AND store_id = 2 -- access the top_store variable stored from helper task
-GROUP BY f.film_id, f.rating
-ORDER BY f.film_id;
 
 -- detailed table for adult movies
 DROP TABLE IF EXISTS detailed_adult_films;
@@ -77,6 +73,7 @@ BEGIN
     -- get the row/record of the transformation function
     SELECT * INTO inventory_record 
     FROM increase_adult_film_inventory(NEW.inventory_count, 30, NEW.rental_price)
+    LIMIT 1;
 
     -- add the processed columns to the summary table
     INSERT INTO summary_adult_films(film_id, film_rating, film_title, increased_inventory, revenue_potential)
@@ -97,30 +94,7 @@ AFTER INSERT ON detailed_adult_films
 FOR EACH ROW
 EXECUTE FUNCTION update_summary_table();
 
--- transformation function to increase the inventory count, converts count INT to VARCHAR qty:<int>
-CREATE OR REPLACE FUNCTION increase_adult_film_inventory(current_count INT, percent INT, rental_price NUMERIC)
--- show both the quantity increase the potential revenue from adding more inventory
-RETURNS TABLE (
-    increased_inventory INT,
-    revenue_potential NUMERIC
-) AS $$ -- dollar signs are delimiters to run raw sql
-BEGIN
-    increased_inventory := CEILING(current_count * (1 + percent / 100.0)); -- increase the count by the percent, round up
-    revenue_potential := (increased_inventory -  current_count) * rental_price; -- calculate added revenue potential
-    RETURN NEXT;
-END;
-$$ LANGUAGE plpgsql;
 
--- create a common table expression to test transformation function
-WITH adult_film_count AS (
-    SELECT *
-    FROM (VALUES
-        (11,25),
-        (100, 100),
-        (1,2)) AS t(current_count, percent) 
-)
-
-SELECT * FROM adult_film_count;
 
 -- SELECT
 --     current_count,
