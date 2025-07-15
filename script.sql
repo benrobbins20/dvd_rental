@@ -53,7 +53,7 @@ CREATE TABLE detailed_adult_films(
     film_rating VARCHAR(5),
     film_title VARCHAR(255),
     film_description TEXT,
-    rental_price NUMERIC,
+    rental_price NUMERIC(4,2), -- eq. 0.0.1 - 99.99
     inventory_count INT,
     store_id INT,
     rental_duration DOUBLE PRECISION
@@ -106,25 +106,28 @@ RETURNS TABLE (
 ) AS $$ -- dollar signs are delimiters to run raw sql
 BEGIN
     increased_inventory := CEILING(current_count * (1 + percent / 100.0)); -- increase the count by the percent, round up
-    revenue_potential := increased_inventory * rental_price; -- calculate revenue potential, assuming $2.99 per rental
+    revenue_potential := (increased_inventory -  current_count) * rental_price; -- calculate added revenue potential
     RETURN NEXT;
 END;
 $$ LANGUAGE plpgsql;
 
 -- create a common table expression to test transformation function
--- -- WITH adult_film_count AS (
--- --     SELECT *
--- --     FROM (VALUES
--- --         (11,25),
--- --         (100, 100),
--- --         (1,2)) AS t(current_count, percent) 
--- -- )
--- -- SELECT
--- --     current_count,
--- --     percent,
--- --     -- call the transformation function to increase inventory count
--- --     increase_adult_film_inventory(current_count, percent) as test_increase
--- -- FROM adult_film_count;
+WITH adult_film_count AS (
+    SELECT *
+    FROM (VALUES
+        (11,25),
+        (100, 100),
+        (1,2)) AS t(current_count, percent) 
+)
+
+SELECT * FROM adult_film_count;
+
+-- SELECT
+--     current_count,
+--     percent,
+--     -- call the transformation function to increase inventory count
+--     increase_adult_film_inventory(current_count, percent) as test_increase
+-- FROM adult_film_count;
 
 
 
@@ -169,4 +172,4 @@ END;
 $$ LANGUAGE plpgsql;
 
 CALL wipe_and_repopulate_tables();
-SELECT * FROM summary_adult_films;
+-- SELECT * FROM summary_adult_films;
