@@ -23,8 +23,8 @@ RETURNS TABLE (
     revenue_potential NUMERIC
 ) AS $$ -- dollar signs are delimiters to run raw sql
 BEGIN
-    increased_inventory := CEILING(current_count * (1 + percent / 100.0)); -- increase the count by the percent, round up
-    revenue_potential := (increased_inventory -  current_count) * rental_price; -- calculate added revenue potential
+    increased_inventory := CEILING(current_count * (1 + percent / 100.0) - current_count); -- increase the count by the percent, round up
+    revenue_potential := increased_inventory * rental_price; -- calculate added revenue potential
     RETURN NEXT;
 END;
 $$ LANGUAGE plpgsql;
@@ -50,7 +50,7 @@ CREATE TABLE summary_adult_films(
     film_id INT PRIMARY KEY,
     film_title VARCHAR(255),
     film_rating VARCHAR(10),
-    increased_inventory VARCHAR(255),
+    increased_inventory INT,
     revenue_potential NUMERIC
 );
 
@@ -150,4 +150,16 @@ $$ LANGUAGE plpgsql;
 -- CALL wipe_and_repopulate_tables();
 -- SELECT * FROM detailed_adult_films;
 -- SELECT * FROM summary_adult_films;
+
+
+-- total added revenue
+----------------------
+-- SELECT
+-- 	SUM(increased_inventory) as added_films,
+-- 	SUM(revenue_potential) AS added_revenue
+-- FROM summary_adult_films;
+
+
+
+
 
